@@ -1,0 +1,495 @@
+{
+  "paper_id": "paper-review-fixture",
+  "filename": "Newton_s third law of motion .pdf!",
+  "review_status": 5,
+  "review_content": "# HIGH LEVEL SUMMARY\n---\n## Summary\nThe provided document is an educational excerpt introducing Newton's Third Law of Motion. It outlines the core principles of action-reaction force pairs and illustrates how to define system boundaries to correctly identify external net forces. Additionally, the text classifies and formulates specific macroscopic forces, specifically deriving the mathematical relationships for the normal force on a horizontal surface and the tension in a perfectly flexible connector under static equilibrium conditions.\n\n## Strengths\n* The document provides a clear, foundational exposition of classical mechanics that is pedagogically standard and necessary for establishing introductory macroscopic physical intuitions.\n* The text effectively utilizes the concept of system boundaries (e.g., the swimmer and the pool wall) to explicitly clarify why equal and opposite interaction forces do not mathematically cancel out, addressing a common point of confusion for novice learners.\n\n## Weaknesses\n* The authors might consider revising the absolute framing that 'forces always occur in pairs.' Presenting the Third Law as an unbounded universal rule omits its well-documented breakdown in modern physics, such as in relativistic systems (where finite signal speeds require field momentum) and in mesoscopic active matter systems exhibiting non-reciprocal interactions. Bounding the law's applicability to classical, conservative macroscopic systems would significantly improve scientific rigor. (Reference Paper: Newton's Third Law and Electrodynamics, 1942) (Reference Paper: Non-reciprocal phase transitions, 2021)\n* The instructional approach relies heavily on traditional narrative explanations and abstract mathematical derivations (e.g., N=mg), which physics education research shows frequently fail to resolve deep-seated pre-Newtonian misconceptions (e.g., viewing rigid surfaces as passive barriers rather than active agents). Integrating 'bridging analogies' or explicit representational tools like system schemas could foster much stronger conceptual restructuring. (Reference Paper: Explaining the 'at rest' condition of an object, 1982) (Reference Paper: Interactive-engagement versus traditional methods: A six-thousand-student survey of mechanics test data for introductory physics courses, 1998)\n* Please consider restructuring the section 'Applying Newton’s Third Law.' Currently, derivations of the normal force and tension based on zero net force (static equilibrium) are placed under a Third Law heading. This structural choice risks reinforcing a highly prevalent student misconception: that balanced equilibrium forces acting on a single object (such as downward weight and upward normal force) constitute a Third Law action-reaction pair.\n* The treatment of tension as a microscopic 'long series of action-reaction forces' may inadvertently hinder students' macroscopic problem-solving abilities. Research indicates that reducing flexible connectors to fragmented local interactions causes students to struggle with analyzing compound multi-body systems. Teaching tension as a holistic systemic constraint could yield better conceptual mastery. (Reference Paper: Research as a guide for teaching introductory mechanics: An illustration in the context of the Atwood's machine, 1994)\n\n## Potential Issues And Suggestions\n\n### [Core Principles and System Boundaries] (Pages: 1-2)\n#### Potential Mistakes and Improvements\n\n*   **Omission of Asymmetric Interaction Scenarios:** While the text effectively explains why forces do not cancel across system boundaries, students frequently harbor the misconception that a larger, more massive, or faster-moving object exerts a greater force on a smaller object during an interaction. Including an explicit example of an asymmetric interaction (e.g., a heavy truck colliding with a lightweight car) would beautifully demonstrate that action-reaction forces remain strictly equal in magnitude despite disparate masses and resulting accelerations.\n\n*   **Force Interaction Terminology:** Describing a force as something that \"originates from\" an object (page 1) can unintentionally reinforce pre-Newtonian \"impetus\" misconceptions, where force is viewed as an internal property possessed by an object. It would improve clarity to refine this language to describe forces strictly as interactions acting *on* specific objects.\n\n*   **Incomplete Action-Reaction Example:** On Page 2, the text states, \"Another example is the force of a baseball as it makes contact with the bat.\" This only identifies a single force. For clarity, it should explicitly name the reciprocal interaction (e.g., \"the force the baseball exerts on the bat, and the reciprocal force the bat exerts on the baseball\").\n\n#### Minor Corrections and Typos\n\n*   **Page 1:** In the sentence \"...then F wall on feetis an external force...\", there is a missing space. It should read \"...then F wall on feet is an external force...\".\n\n*   **Page 1 & 2:** Utilizing standard mathematical subscript formatting (e.g., $F_{\\text{wall on feet}}$) instead of standard inline text with spaces would significantly improve the readability of the inline variables.\n\n*   **Page 2:** To ensure proper subject-verb agreement, \"...the octopus or jet ski push the water backward...\" should be updated to \"...the octopus or jet ski pushes the water backward...\".\n\n### [Everyday Applications and Normal Force Formulation] (Pages: 2-3)\n#### Potential Mistakes and Improvements\n\n*   **Incomplete Boundary Conditions for the Normal Force Equation:** The text establishes $N = mg$ with the premise: *\"If an object on a flat surface is not accelerating, the net external force is zero, and the normal force has the same magnitude as the weight...\"* This equation only holds if gravity and the normal force are the *strictly only* vertical forces acting on the object. If other vertical forces are applied (e.g., an external downward push), $N$ will not equal $mg$. Furthermore, stating the object is \"not accelerating\" implies zero acceleration in all dimensions; an object can accelerate horizontally while $N=mg$ remains valid, provided there is zero *vertical* acceleration.\n\n#### Minor Corrections and Typos\n\n*   **Conflation of \"Flat\" and \"Horizontal\":** On page 2, the text states, *\"If an object on a flat surface...\"* Introducing the premise with \"flat\" creates physical ambiguity, as an inclined plane is also flat (where $N = mg \\cos\\theta$). Replacing \"flat\" with \"horizontal\" in the initial explanatory sentence would streamline the logic and match the subsequent disclaimer.\n\n### [Mechanics of Tension and Thrust] (Pages: 3-4)\n#### Potential Mistakes and Improvements\n\n*   **Misattribution of Newton's Third Law to Tension:** When discussing Figure 4.9, the text asserts: *\"Note that the rope pulls with equal magnitude force but in opposite directions to the hand and to the mass... This is an example of Newton’s third law.\"* The forces a single rope exerts on two distinct external objects (the hand and the mass) do not constitute an action-reaction pair. The equality of these forces is a consequence of applying Newton's Second Law to an idealized, massless rope ($F_{\\text{net}} = ma = 0$). A true Third Law pair would be the rope pulling up on the mass, and the mass pulling down on the rope.\n\n*   **Algebraic Substitution Error:** In the derivation of tension, the text states: *\"By substituting mg for Fnet and rearranging the equation...\"* Because $F_{\\text{net}}$ is explicitly zero for the stationary mass, substituting $mg$ for $F_{\\text{net}}$ into $F_{\\text{net}} = T - W = 0$ mathematically yields $mg = T - W$, which is incorrect. The text should instruct substituting $mg$ for the weight $W$.\n\n*   **Contradiction in Vector Sign Convention:** The text defines $T$ and $W$ as *\"the magnitudes of the tension and weight, respectively, and their signs indicate direction.\"* By formal mathematical definition, vector magnitudes are non-negative scalars and inherently lack directional signs. It is the algebraic signs applied to these variables within the net force equation (e.g., $+T$ and $-W$) that dictate the coordinate convention. Revising the wording to clarify this distinction would resolve the mathematical contradiction.\n\n#### Minor Corrections and Typos\n\n*   **Inconsistent Formatting:** The notation for the net force variable alternates between `F net` (with a space) and `Fnet`. Standardizing this to a uniform subscript format (e.g., $F_{\\text{net}}$) is recommended.\n\n*   **Spacing and Exponent Formatting:** On page 4, in the numerical calculation `T=mg=(5.00 kg)(9 .80 m/s 2 )=49.0 N.`, there is an errant space within the acceleration value (\"9 .80\"), and the exponent lacks standard superscript formatting. It should read `(9.80 m/s²)`.\n\n# CITATION & REFERENCE VERIFICATION\n---\n## Reference Check Summary\nNo references extracted from the document.",
+  "review_error": "",
+  "recipient": {
+    "googler_email": "ianli@google.com"
+  },
+  "review_start_timestamp_ms": "1790862850722",
+  "upload_timestamp_ms": "1790862849856",
+  "failed_count": 0,
+  "review_model_config": {
+    "vertex": {
+      "model_name": "gemini-3.1-pro-preview",
+      "project_id": "search-tuning-dev",
+      "location": "global",
+      "service_account": "research-operations-paperassistant@system.gserviceaccount.com"
+    }
+  },
+  "review_completion_timestamp_ms": "1790863547939",
+  "pat_topology": 2,
+  "pat_run_config": {
+    "modules": {
+      "pat": {
+        "enabled": true,
+        "topology": 2,
+        "enable_search": true,
+        "include_segment_summaries": true,
+        "enforce_category_limits": true,
+        "segment_model_overrides": []
+      },
+      "scholar_peer": {
+        "enabled": true
+      },
+      "citation_checker": {
+        "enabled": true
+      }
+    },
+    "base_model_config": {
+      "vertex": {
+        "model_name": "gemini-3.1-pro-preview"
+      }
+    }
+  },
+  "anchored_comments": [
+    {
+      "comment_id": "c-1-e12f3187",
+      "severity": 2,
+      "summary": "Bound Third Law applicability",
+      "body_markdown": "The authors might consider revising the absolute framing that 'forces always occur in pairs.' Presenting the Third Law as an unbounded universal rule omits its well-documented breakdown in modern physics, such as in relativistic systems (where finite signal speeds require field momentum) and in mesoscopic active matter systems exhibiting non-reciprocal interactions. Bounding the law's applicability to classical, conservative macroscopic systems would significantly improve scientific rigor.",
+      "suggested_edit": "",
+      "location": {
+        "pdf": {
+          "page_number": 1,
+          "quote_selector": {
+            "exact": "Newton’s third law of motion tells us that forces always occur in pairs",
+            "prefix": "direction to the force that it exerts.\n\n",
+            "suffix": ", and one object\ncannot exert a force on another without exp"
+          },
+          "bounding_boxes": [
+            {
+              "left": 0.081100002,
+              "top": 0.50269997,
+              "right": 0.7087,
+              "bottom": 0.51709998
+            }
+          ]
+        }
+      }
+    },
+    {
+      "comment_id": "c-2-f930611a",
+      "severity": 2,
+      "summary": "Restructure section heading",
+      "body_markdown": "Please consider restructuring the section 'Applying Newton’s Third Law.' Currently, derivations of the normal force and tension based on zero net force (static equilibrium) are placed under a Third Law heading. This structural choice risks reinforcing a highly prevalent student misconception: that balanced equilibrium forces acting on a single object (such as downward weight and upward normal force) constitute a Third Law action-reaction pair.",
+      "suggested_edit": "",
+      "location": {
+        "pdf": {
+          "page_number": 2,
+          "quote_selector": {
+            "exact": "Applying Newton’s Third Law",
+            "prefix": "the water, in turn, pushes the octopus or jet ski forward.\n\n",
+            "suffix": "\n\nForces are classified and given names based on their sourc"
+          },
+          "bounding_boxes": [
+            {
+              "left": 0.079800002,
+              "top": 0.61750001,
+              "right": 0.50749999,
+              "bottom": 0.63919997
+            }
+          ]
+        }
+      }
+    },
+    {
+      "comment_id": "c-3-df9ca106",
+      "severity": 4,
+      "summary": "Reframe tension conceptually",
+      "body_markdown": "The treatment of tension as a microscopic 'long series of action-reaction forces' may inadvertently hinder students' macroscopic problem-solving abilities. Research indicates that reducing flexible connectors to fragmented local interactions causes students to struggle with analyzing compound multi-body systems. Teaching tension as a holistic systemic constraint could yield better conceptual mastery.",
+      "suggested_edit": "",
+      "location": {
+        "pdf": {
+          "page_number": 3,
+          "quote_selector": {
+            "exact": "This is possible because a flexible connector is simply a long series of\naction-reaction forces, except at the two ends where outside objects provide one member\nof the action-reaction forces.",
+            "prefix": "and that acts in opposite directions at the two ends\nof the connector. ",
+            "suffix": "\n\nConsider a person holding a mass on a rope, as shown in Fi"
+          },
+          "bounding_boxes": [
+            {
+              "left": 0.2413,
+              "top": 0.1891,
+              "right": 0.8757,
+              "bottom": 0.20370001
+            },
+            {
+              "left": 0.080399998,
+              "top": 0.207,
+              "right": 0.90600002,
+              "bottom": 0.22149999
+            },
+            {
+              "left": 0.080300003,
+              "top": 0.22480001,
+              "right": 0.34720001,
+              "bottom": 0.23630001
+            }
+          ]
+        }
+      }
+    },
+    {
+      "comment_id": "c-4-7fa43222",
+      "severity": 4,
+      "summary": "Include asymmetric interaction example",
+      "body_markdown": "While the text effectively explains why forces do not cancel across system boundaries, students frequently harbor the misconception that a larger, more massive, or faster-moving object exerts a greater force on a smaller object during an interaction. Including an explicit example of an asymmetric interaction (e.g., a heavy truck colliding with a lightweight car) would beautifully demonstrate that action-reaction forces remain strictly equal in magnitude despite disparate masses and resulting accelerations.",
+      "suggested_edit": "",
+      "location": {
+        "pdf": {
+          "page_number": 1,
+          "quote_selector": {
+            "exact": "Newton’s third law of motion states that whenever a first object exerts a force on a\nsecond object, the first object experiences a force equal in magnitude but opposite in\ndirection to the force that it exerts.",
+            "prefix": "throwing a ball, are all perfect examples of Newton’s third law in action.\n\n",
+            "suffix": "\n\nNewton’s third law of motion tells us that forces always o"
+          },
+          "bounding_boxes": [
+            {
+              "left": 0.081200004,
+              "top": 0.435,
+              "right": 0.85399997,
+              "bottom": 0.44949999
+            },
+            {
+              "left": 0.0801,
+              "top": 0.45280001,
+              "right": 0.86119998,
+              "bottom": 0.46740001
+            },
+            {
+              "left": 0.080300003,
+              "top": 0.47060001,
+              "right": 0.39809999,
+              "bottom": 0.4822
+            }
+          ]
+        }
+      }
+    },
+    {
+      "comment_id": "c-5-ca6d0fc1",
+      "severity": 3,
+      "summary": "Refine force interaction terminology",
+      "body_markdown": "Describing a force as something that \"originates from\" an object can unintentionally reinforce pre-Newtonian \"impetus\" misconceptions, where force is viewed as an internal property possessed by an object. It would improve clarity to refine this language to describe forces strictly as interactions acting *on* specific objects.",
+      "suggested_edit": "",
+      "location": {
+        "pdf": {
+          "page_number": 1,
+          "quote_selector": {
+            "exact": "because it originates from the\nswimmer rather than acting on the swimmer.",
+            "prefix": "we do not need to consider the force F feet on wall ",
+            "suffix": " Therefore, F feet on wall does not directly affect\nthe mot"
+          },
+          "bounding_boxes": [
+            {
+              "left": 0.61229998,
+              "top": 0.88929999,
+              "right": 0.88480002,
+              "bottom": 0.90390003
+            },
+            {
+              "left": 0.0801,
+              "top": 0.91000003,
+              "right": 0.4851,
+              "bottom": 0.92439997
+            }
+          ]
+        }
+      }
+    },
+    {
+      "comment_id": "c-6-0e950e98",
+      "severity": 3,
+      "summary": "Explicitly name reciprocal interaction",
+      "body_markdown": "This only identifies a single force. For clarity, it should explicitly name the reciprocal interaction (e.g., \"the force the baseball exerts on the bat, and the reciprocal force the bat exerts on the baseball\").",
+      "suggested_edit": "",
+      "location": {
+        "pdf": {
+          "page_number": 2,
+          "quote_selector": {
+            "exact": "Another example is the force of a baseball as it makes contact with the bat.",
+            "prefix": "backward when tires spin on a gravel road and throw rocks backward.\n\n",
+            "suffix": " Helicopters\ncreate lift by pushing air down, creating an u"
+          },
+          "bounding_boxes": [
+            {
+              "left": 0.079800002,
+              "top": 0.47330001,
+              "right": 0.76660001,
+              "bottom": 0.48769999
+            }
+          ]
+        }
+      }
+    },
+    {
+      "comment_id": "c-7-3acbd4c6",
+      "severity": 3,
+      "summary": "Missing space typo",
+      "body_markdown": "In the sentence \"...then F wall on feetis an external force...\", there is a missing space. It should read \"...then F wall on feet is an external force...\".",
+      "suggested_edit": "then F wall on feet is an external force",
+      "location": {
+        "pdf": {
+          "page_number": 1,
+          "quote_selector": {
+            "exact": "then F wall on feetis an external force",
+            "prefix": "If we choose the swimmer to be the system of interest, as in the figure,\n",
+            "suffix": " on the swimmer and affects her motion."
+          },
+          "bounding_boxes": [
+            {
+              "left": 0.0801,
+              "top": 0.83050001,
+              "right": 0.40669999,
+              "bottom": 0.84570003
+            }
+          ]
+        }
+      }
+    },
+    {
+      "comment_id": "c-8-3904fbde",
+      "severity": 3,
+      "summary": "Correct subject-verb agreement",
+      "body_markdown": "To ensure proper subject-verb agreement, \"...the octopus or jet ski push the water backward...\" should be updated to \"...the octopus or jet ski pushes the water backward...\".",
+      "suggested_edit": "the octopus or jet ski pushes\nthe water backward",
+      "location": {
+        "pdf": {
+          "page_number": 2,
+          "quote_selector": {
+            "exact": "the octopus or jet ski push\nthe water backward",
+            "prefix": "similar to how a jet ski is propelled. In these examples, ",
+            "suffix": ", and the water, in turn, pushes the octopus or jet ski forw"
+          },
+          "bounding_boxes": [
+            {
+              "left": 0.65670002,
+              "top": 0.56260002,
+              "right": 0.89679998,
+              "bottom": 0.57690001
+            },
+            {
+              "left": 0.0801,
+              "top": 0.58039999,
+              "right": 0.25940001,
+              "bottom": 0.59170002
+            }
+          ]
+        }
+      }
+    },
+    {
+      "comment_id": "c-9-4f35335d",
+      "severity": 2,
+      "summary": "Clarify boundary conditions for N=mg",
+      "body_markdown": "This equation only holds if gravity and the normal force are the *strictly only* vertical forces acting on the object. If other vertical forces are applied (e.g., an external downward push), $N$ will not equal $mg$. Furthermore, stating the object is \"not accelerating\" implies zero acceleration in all dimensions; an object can accelerate horizontally while $N=mg$ remains valid, provided there is zero *vertical* acceleration.",
+      "suggested_edit": "",
+      "location": {
+        "pdf": {
+          "page_number": 2,
+          "quote_selector": {
+            "exact": "If an object on a flat surface is not accelerating, the net external force is zero, and\nthe normal force has the same magnitude as the weight of the system but acts in the\nopposite direction.",
+            "prefix": "it is the force needed to support the weight of that\nobject. ",
+            "suffix": " In equation form, we write that \n\nN=mg."
+          },
+          "bounding_boxes": [
+            {
+              "left": 0.1494,
+              "top": 0.88749999,
+              "right": 0.89410001,
+              "bottom": 0.90210003
+            },
+            {
+              "left": 0.0801,
+              "top": 0.90539998,
+              "right": 0.85479999,
+              "bottom": 0.92000002
+            },
+            {
+              "left": 0.080300003,
+              "top": 0.92339998,
+              "right": 0.2494,
+              "bottom": 0.9375
+            }
+          ]
+        }
+      }
+    },
+    {
+      "comment_id": "c-10-cc694365",
+      "severity": 3,
+      "summary": "Replace \"flat\" with \"horizontal\"",
+      "body_markdown": "Introducing the premise with \"flat\" creates physical ambiguity, as an inclined plane is also flat (where $N = mg \\cos\\theta$). Replacing \"flat\" with \"horizontal\" in the initial explanatory sentence would streamline the logic and match the subsequent disclaimer.",
+      "suggested_edit": "If an object on a horizontal surface",
+      "location": {
+        "pdf": {
+          "page_number": 2,
+          "quote_selector": {
+            "exact": "If an object on a flat surface",
+            "prefix": "it is the force needed to support the weight of that\nobject. ",
+            "suffix": " is not accelerating, the net external force is zero, and\nth"
+          },
+          "bounding_boxes": [
+            {
+              "left": 0.1494,
+              "top": 0.88749999,
+              "right": 0.40380001,
+              "bottom": 0.90210003
+            }
+          ]
+        }
+      }
+    },
+    {
+      "comment_id": "c-11-a5e161d1",
+      "severity": 1,
+      "summary": "Misattribution of Third Law to tension",
+      "body_markdown": "When discussing Figure 4.9, the text asserts: *\"Note that the rope pulls with equal magnitude force but in opposite directions to the hand and to the mass... This is an example of Newton’s third law.\"* The forces a single rope exerts on two distinct external objects (the hand and the mass) do not constitute an action-reaction pair. The equality of these forces is a consequence of applying Newton's Second Law to an idealized, massless rope ($F_{\\text{net}} = ma = 0$). A true Third Law pair would be the rope pulling up on the mass, and the mass pulling down on the rope.",
+      "suggested_edit": "",
+      "location": {
+        "pdf": {
+          "page_number": 3,
+          "quote_selector": {
+            "exact": "Note that the rope pulls with equal\nmagnitude force but in opposite directions to the hand and to the mass (neglecting the\nweight of the rope). This is an example of Newton’s third law.",
+            "prefix": "pull that such a flexible connector exerts is a tension. ",
+            "suffix": " The rope is the medium that\ntransmits forces of equal magn"
+          },
+          "bounding_boxes": [
+            {
+              "left": 0.57169998,
+              "top": 0.61070001,
+              "right": 0.88429999,
+              "bottom": 0.62489998
+            },
+            {
+              "left": 0.080899999,
+              "top": 0.62819999,
+              "right": 0.87419999,
+              "bottom": 0.64289999
+            },
+            {
+              "left": 0.079700001,
+              "top": 0.64600003,
+              "right": 0.63139999,
+              "bottom": 0.66070002
+            }
+          ]
+        }
+      }
+    },
+    {
+      "comment_id": "c-12-89cfe1e0",
+      "severity": 2,
+      "summary": "Correct algebraic substitution instruction",
+      "body_markdown": "Because $F_{\\text{net}}$ is explicitly zero for the stationary mass, substituting $mg$ for $F_{\\text{net}}$ into $F_{\\text{net}} = T - W = 0$ mathematically yields $mg = T - W$, which is incorrect. The text should instruct substituting $mg$ for the weight $W$.",
+      "suggested_edit": "By substituting mg for W and rearranging the\nequation,",
+      "location": {
+        "pdf": {
+          "page_number": 3,
+          "quote_selector": {
+            "exact": "By substituting mg for Fnet and rearranging the\nequation,",
+            "prefix": "indicate direction, with up being positive. ",
+            "suffix": " the tension equals the weight of the supported mass, just a"
+          },
+          "bounding_boxes": [
+            {
+              "left": 0.46059999,
+              "top": 0.85460001,
+              "right": 0.89410001,
+              "bottom": 0.86919999
+            },
+            {
+              "left": 0.080300003,
+              "top": 0.87260002,
+              "right": 0.1639,
+              "bottom": 0.88679999
+            }
+          ]
+        }
+      }
+    },
+    {
+      "comment_id": "c-13-81c60a86",
+      "severity": 2,
+      "summary": "Clarify vector sign convention",
+      "body_markdown": "The text defines $T$ and $W$ as *\"the magnitudes of the tension and weight, respectively, and their signs indicate direction.\"* By formal mathematical definition, vector magnitudes are non-negative scalars and inherently lack directional signs. It is the algebraic signs applied to these variables within the net force equation (e.g., $+T$ and $-W$) that dictate the coordinate convention. Revising the wording to clarify this distinction would resolve the mathematical contradiction.",
+      "suggested_edit": "",
+      "location": {
+        "pdf": {
+          "page_number": 3,
+          "quote_selector": {
+            "exact": "where T and W are the magnitudes of the tension and weight, respectively, and their signs\nindicate direction, with up being positive.",
+            "prefix": "F net =T−W=0,\n\n",
+            "suffix": " By substituting mg for Fnet and rearranging the\nequation, t"
+          },
+          "bounding_boxes": [
+            {
+              "left": 0.079700001,
+              "top": 0.83679998,
+              "right": 0.90270001,
+              "bottom": 0.85140002
+            },
+            {
+              "left": 0.080499999,
+              "top": 0.85479999,
+              "right": 0.4524,
+              "bottom": 0.86919999
+            }
+          ]
+        }
+      }
+    },
+    {
+      "comment_id": "c-14-c35d7992",
+      "severity": 3,
+      "summary": "Standardize net force notation",
+      "body_markdown": "The notation for the net force variable alternates between `F net` (with a space) and `Fnet`. Standardizing this to a uniform subscript format (e.g., $F_{\\text{net}}$) is recommended.",
+      "suggested_edit": "F_{net} =0",
+      "location": {
+        "pdf": {
+          "page_number": 3,
+          "quote_selector": {
+            "exact": "F net =0",
+            "prefix": "mass in the figure is stationary, then its acceleration is\nzero, so ",
+            "suffix": ". The only external forces acting on the mass are its weight"
+          },
+          "bounding_boxes": [
+            {
+              "left": 0.1583,
+              "top": 0.75029999,
+              "right": 0.2254,
+              "bottom": 0.7647
+            }
+          ]
+        }
+      }
+    },
+    {
+      "comment_id": "c-15-a2267790",
+      "severity": 3,
+      "summary": "Fix spacing and exponent formatting",
+      "body_markdown": "In the numerical calculation `T=mg=(5.00 kg)(9 .80 m/s 2 )=49.0 N.`, there is an errant space within the acceleration value (\"9 .80\"), and the exponent lacks standard superscript formatting. It should read `(9.80 m/s²)`.",
+      "suggested_edit": "T=mg=(5.00 kg)(9.80 m/s²)=49.0 N.",
+      "location": {
+        "pdf": {
+          "page_number": 4,
+          "quote_selector": {
+            "exact": "T=mg=(5.00 kg)(9 .80 m/s\n2\n)=49.0 N.",
+            "prefix": "For a 5.00-kg mass (neglecting the mass of the rope), we see that \n\n",
+            "suffix": "\n\nAnother example of Newton’s third law in action is thrust."
+          },
+          "bounding_boxes": [
+            {
+              "left": 0.079999998,
+              "top": 0.036699999,
+              "right": 0.42109999,
+              "bottom": 0.054400001
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
