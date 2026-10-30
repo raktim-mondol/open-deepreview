@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { DeepReviewPipeline, estimateReviewCost, formatMoneyUsd } from "./agents/pipeline.ts";
@@ -11,7 +11,7 @@ import {
   saveStoredConfig,
   TOPOLOGY_PROFILES,
 } from "./config/store.ts";
-import { parseManuscriptFile } from "./doc/parser.ts";
+import { inspectAndConvertPdfToMarkdown, parseManuscriptFile } from "./doc/parser.ts";
 import {
   computeCategoryFilterChips,
   computeQuoteBoundingBoxesOnPage,
@@ -33,7 +33,10 @@ USAGE:
   deepreview <command> [options]
 
 COMMANDS:
-  review <file>            Run the full 4-stage PAT review pipeline on a PDF, LaTeX, or Markdown paper
+  review <file>            Convert PDF to Markdown via @firecrawl/pdf-inspector & run the 4-stage PAT review
+                           (Outputs review in Markdown by default and saves <paper>.review.md)
+  pdf2md <file.pdf>        Convert a PDF paper to clean Markdown using Firecrawl's pdf-inspector
+                           (Aliases: inspect-pdf, pdf-inspector)
   verify-citations <file>  Extract & verify bibliography entries against OpenAlex, Crossref & LLM grounding
   estimate-cost <file>     Estimate low/median/high review cost for a manuscript & topology
   config [set|show|path]   Configure or inspect persistent LLM settings (baseUrl, apiKey, model, topology)
@@ -50,11 +53,12 @@ LLM & PIPELINE OPTIONS (work across commands or via 'deepreview config set'):
   --topology <level>       Review depth topology: LOW | MID | HIGH | EXTRA_HIGH (default: MID)
   --thinking-level <lvl>   Reasoning effort: THINKING_LEVEL_LOW | THINKING_LEVEL_MEDIUM | THINKING_LEVEL_HIGH
   --prompt <text>          Custom author guidance / target venue / focus areas for the review
+  --save-markdown <path>   When reviewing a PDF, also save the converted Firecrawl pdf-inspector Markdown to <path>
   --no-citations           Disable the scholarly citation verification module
   --no-scholar-peer        Disable the high-level Scholar Peer summary/strengths/weaknesses module
   --offline-citations      Skip live OpenAlex/Crossref HTTP queries during citation verification
   -o, --output <path>      Write output Markdown (or JSON with --json) to a file
-  --json                   Emit full Deep Review v1 Review JSON resource (including anchoredComments & bboxes)
+  --json                   Emit JSON instead of Markdown
   -p, --port <port>        Port for 'deepreview serve' (default: 8787)
   -h, --help               Show this help message
 `.trim();
@@ -92,6 +96,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<number> {
       topology: { type: "string" },
       "thinking-level": { type: "string" },
       prompt: { type: "string" },
+      "save-markdown": { type: "string" },
       output: { type: "string", short: "o" },
       json: { type: "boolean" },
       "no-citations": { type: "boolean" },
@@ -172,7 +177,56 @@ export async function runCli(argv = process.argv.slice(2)): Promise<number> {
     return 0;
   }
 
-  // 2. FIXTURE COMMAND
+  // 2. PDF2MD / INSPECT-PDF / PDF-INSPECTOR COMMAND (Firecrawl pdf-inspector)
+  if (command === "pdf2md" || command === "inspect-pdf" || command === "pdf-inspector") {
+    const filePath = positionals[1];
+    if (!filePath) {
+      throw new Error(`Usage: deepreview ${command} <file.pdf> [-o output.md] [--json]`);
+    }
+    const absPath = resolve(filePath);
+    const bytes = new Uint8Array(readFileSync(absPath));
+    const { result, perPage, classification, markdown } = inspectAndConvertPdfToMarkdown(bytes);
+
+    console.error(
+      `[pdf-inspector] Classified "${basename(absPath)}" as ${result.pdfType} (${result.pageCount} pages, confidence=${(result.confidence * 100).toFixed(0)}%, ${result.processingTimeMs}ms)`
+    );
+
+    const outContent = values.json
+      ? JSON.stringify(
+          {
+            filename: basename(absPath),
+            classification,
+            pdfType: result.pdfType,
+            pageCount: result.pageCount,
+            confidence: result.confidence,
+            processingTimeMs: result.processingTimeMs,
+            isComplexLayout: result.isComplexLayout,
+            pagesWithTables: result.pagesWithTables,
+            pagesWithColumns: result.pagesWithColumns,
+            pagesNeedingOcr: result.pagesNeedingOcr,
+            markdown,
+            pages: perPage.pages.map((p) => ({
+              pageNumber: p.page + 1,
+              needsOcr: p.needsOcr,
+              ocrReason: p.ocrReason,
+              markdown: p.markdown,
+            })),
+          },
+          null,
+          2
+        )
+      : markdown;
+
+    if (values.output) {
+      writeFileSync(String(values.output), outContent, "utf8");
+      console.error(`[pdf-inspector] Saved converted Markdown to ${values.output}`);
+    } else {
+      console.log(outContent);
+    }
+    return 0;
+  }
+
+  // 3. FIXTURE COMMAND
   if (command === "fixture") {
     const jsonPath = join(FIXTURES_DIR, "google_deepreview_fixture.json");
     const pdfPath = join(FIXTURES_DIR, "newton_third_law_fixture.pdf");
@@ -182,7 +236,6 @@ export async function runCli(argv = process.argv.slice(2)): Promise<number> {
     const comments = sortAnchoredComments(review.result?.anchoredComments ?? []);
     const chips = computeCategoryFilterChips(comments);
 
-    // Recompute bounding boxes on page 1 from the actual PDF text layer
     const page1Layer = parsedPdf.pages[0]?.pdfTextLayer;
     let recomputedMatches = 0;
     if (page1Layer) {
@@ -201,17 +254,32 @@ export async function runCli(argv = process.argv.slice(2)): Promise<number> {
     }
 
     if (values.json) {
-      const out = JSON.stringify({ document, review, chips, recomputedPage1Matches: recomputedMatches }, null, 2);
+      const out = JSON.stringify(
+        {
+          document,
+          review,
+          chips,
+          pdfInspector: parsedPdf.pdfInspector,
+          recomputedPage1Matches: recomputedMatches,
+        },
+        null,
+        2
+      );
       if (values.output) writeFileSync(String(values.output), out, "utf8");
       else console.log(out);
       return 0;
     }
 
-    console.log(`Document: ${document.name} (${document.displayName})`);
-    console.log(`Review:   ${review.name} [${review.state}]`);
-    console.log(`Model:    ${review.runConfig?.model} | Topology: ${review.runConfig?.topology}`);
-    console.log(`PDF Pages:${parsedPdf.pages.length} | Anchored Comments: ${comments.length} | Page-1 Quote BBox Matches: ${recomputedMatches}`);
-    console.log(`Filter Chips: ${chips.map((c) => `${c.label}: ${c.count}`).join(" | ")}`);
+    console.log(`Document:      ${document.name} (${document.displayName})`);
+    console.log(`Review:        ${review.name} [${review.state}]`);
+    console.log(`Model:         ${review.runConfig?.model} | Topology: ${review.runConfig?.topology}`);
+    console.log(
+      `PDF Inspector: type=${parsedPdf.pdfInspector?.pdfType} | pages=${parsedPdf.pages.length} | time=${parsedPdf.pdfInspector?.processingTimeMs}ms`
+    );
+    console.log(
+      `Comments:      ${comments.length} | Page-1 Quote BBox Matches: ${recomputedMatches}`
+    );
+    console.log(`Filter Chips:  ${chips.map((c) => `${c.label}: ${c.count}`).join(" | ")}`);
     console.log("\nTop Anchored Comments:");
     for (const c of comments.slice(0, 8)) {
       console.log(
@@ -225,7 +293,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<number> {
     return 0;
   }
 
-  // 3. ESTIMATE-COST COMMAND
+  // 4. ESTIMATE-COST COMMAND
   if (command === "estimate-cost") {
     const filePath = positionals[1];
     if (!filePath) throw new Error("Usage: deepreview estimate-cost <file>");
@@ -241,6 +309,11 @@ export async function runCli(argv = process.argv.slice(2)): Promise<number> {
     }
     const profile = TOPOLOGY_PROFILES[cfg.topology === "TOPOLOGY_UNSPECIFIED" ? "MID" : cfg.topology];
     console.log(`Manuscript:     ${doc.filename} (${doc.pages.length} pages, format: ${doc.format})`);
+    if (doc.pdfInspector) {
+      console.log(
+        `PDF Inspector:  ${doc.pdfInspector.pdfType} (confidence ${(doc.pdfInspector.confidence * 100).toFixed(0)}%, converted to Markdown in ${doc.pdfInspector.processingTimeMs}ms)`
+      );
+    }
     console.log(`Model:          ${cfg.model} (${cfg.baseUrl})`);
     console.log(`Topology:       ${cfg.topology} (${profile.description})`);
     console.log(`Thinking Level: ${cfg.thinkingLevel}`);
@@ -248,11 +321,16 @@ export async function runCli(argv = process.argv.slice(2)): Promise<number> {
     return 0;
   }
 
-  // 4. VERIFY-CITATIONS COMMAND
+  // 5. VERIFY-CITATIONS COMMAND
   if (command === "verify-citations") {
     const filePath = positionals[1];
     if (!filePath) throw new Error("Usage: deepreview verify-citations <file>");
     const doc = await parseManuscriptFile(resolve(filePath));
+    if (doc.pdfInspector) {
+      console.error(
+        `[pdf-inspector] Converted "${doc.filename}" (${doc.pdfInspector.pdfType}, ${doc.pages.length} pages) to clean Markdown in ${doc.pdfInspector.processingTimeMs}ms`
+      );
+    }
     const llm = new UniversalLLMClient({
       baseUrl: cfg.baseUrl,
       apiKey: cfg.apiKey,
@@ -281,11 +359,24 @@ export async function runCli(argv = process.argv.slice(2)): Promise<number> {
     return 0;
   }
 
-  // 5. REVIEW COMMAND
+  // 6. REVIEW COMMAND
   if (command === "review") {
     const filePath = positionals[1];
     if (!filePath) throw new Error("Usage: deepreview review <file> [options]");
-    const doc = await parseManuscriptFile(resolve(filePath));
+    const absInput = resolve(filePath);
+    const doc = await parseManuscriptFile(absInput);
+
+    if (doc.pdfInspector) {
+      console.error(
+        `[pdf-inspector] Converted PDF "${doc.filename}" (${doc.pdfInspector.pdfType}, ${doc.pages.length} pages) -> clean Markdown in ${doc.pdfInspector.processingTimeMs}ms`
+      );
+    }
+    if (values["save-markdown"]) {
+      const mdOut = resolve(String(values["save-markdown"]));
+      writeFileSync(mdOut, doc.markdown, "utf8");
+      console.error(`[pdf-inspector] Saved converted paper Markdown to ${mdOut}`);
+    }
+
     console.error(
       `[DeepReview] Analyzing "${doc.filename}" (${doc.pages.length} pages) with model="${cfg.model}" @ ${cfg.baseUrl} (topology=${cfg.topology})`
     );
@@ -298,20 +389,30 @@ export async function runCli(argv = process.argv.slice(2)): Promise<number> {
       },
     });
     const review = await pipeline.run(doc);
-    const outputContent = values.json
-      ? JSON.stringify(review, null, 2)
-      : review.result?.reviewMarkdown ?? "";
+    const reviewMarkdown = review.result?.reviewMarkdown ?? "";
+    const outputContent = values.json ? JSON.stringify(review, null, 2) : reviewMarkdown;
 
     if (values.output) {
       writeFileSync(String(values.output), outputContent, "utf8");
-      console.error(`[DeepReview] Saved output to ${values.output}`);
+      console.error(`[DeepReview] Saved review output to ${values.output}`);
     } else {
+      // Emit review Markdown to stdout AND write a default `<paper>.review.md` file alongside when not in --json mode
       console.log(outputContent);
+      if (!values.json) {
+        const stem = basename(absInput, extname(absInput));
+        const defaultMdPath = join(dirname(absInput), `${stem}.review.md`);
+        try {
+          writeFileSync(defaultMdPath, reviewMarkdown, "utf8");
+          console.error(`[DeepReview] Saved Markdown review report to ${defaultMdPath}`);
+        } catch {
+          // Ignore if directory is read-only
+        }
+      }
     }
     return 0;
   }
 
-  // 6. SERVE COMMAND
+  // 7. SERVE COMMAND
   if (command === "serve") {
     const port = Number(values.port || 8787);
     const serverApp = new DeepReviewServer();

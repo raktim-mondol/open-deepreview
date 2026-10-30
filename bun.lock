@@ -5,6 +5,7 @@
     "": {
       "name": "open-deepreview",
       "dependencies": {
+        "@firecrawl/pdf-inspector": "^1.25.2",
         "pdfjs-dist": "^4.10.38",
       },
       "devDependencies": {
@@ -14,6 +15,20 @@
     },
   },
   "packages": {
+    "@firecrawl/pdf-inspector": ["@firecrawl/pdf-inspector@1.25.2", "", { "optionalDependencies": { "@firecrawl/pdf-inspector-darwin-arm64": "1.25.2", "@firecrawl/pdf-inspector-linux-arm64-gnu": "1.25.2", "@firecrawl/pdf-inspector-linux-arm64-musl": "1.25.2", "@firecrawl/pdf-inspector-linux-x64-gnu": "1.25.2", "@firecrawl/pdf-inspector-linux-x64-musl": "1.25.2", "@firecrawl/pdf-inspector-win32-x64-msvc": "1.25.2" }, "bin": { "pdf-inspector": "bin/pdf-inspector.mjs" } }, "sha512-VqGkaBBDaWMaRYYGFqjcdan87MhIUbUOU3Q8Xfwe85Jg5EfU7jF4v021KPtnH0o9FOmVY41Yemp6mulZTR2Qww=="],
+
+    "@firecrawl/pdf-inspector-darwin-arm64": ["@firecrawl/pdf-inspector-darwin-arm64@1.25.2", "", { "os": "darwin", "cpu": "arm64" }, "sha512-L0/7H9b8Wi52SclvfZG9nj9GJAOOCRZV0+qGXq8INBLCwcNTc9n0OPhjN5tRHQ4fHZrtFlY/iEnC6UJkSADkxA=="],
+
+    "@firecrawl/pdf-inspector-linux-arm64-gnu": ["@firecrawl/pdf-inspector-linux-arm64-gnu@1.25.2", "", { "os": "linux", "cpu": "arm64", "libc": "glibc" }, "sha512-hsd28pWZ8UmJCXujaJz0H9xzrqqPpufopcdYGRwbnlR8xzVsqeT82NWRIuuld3CkJQqGFXqPJz0Wkt7AS+jfNw=="],
+
+    "@firecrawl/pdf-inspector-linux-arm64-musl": ["@firecrawl/pdf-inspector-linux-arm64-musl@1.25.2", "", { "os": "linux", "cpu": "arm64", "libc": "musl" }, "sha512-mdBDi1938AHp97c0oArmoOnGWijT5K/RXBa5Pyq0yJdzqx/Jd/P5bAS4O2srm8cspkkV9VhNwRjMrP9527O0/Q=="],
+
+    "@firecrawl/pdf-inspector-linux-x64-gnu": ["@firecrawl/pdf-inspector-linux-x64-gnu@1.25.2", "", { "os": "linux", "cpu": "x64", "libc": "glibc" }, "sha512-5+RA17b9h4EtdKXEqztorwjskXTIEw8DB1Q37Awuri3YoB+MquHjA348DGwf6YcyIKE1oldAHd3K63Z79qATmg=="],
+
+    "@firecrawl/pdf-inspector-linux-x64-musl": ["@firecrawl/pdf-inspector-linux-x64-musl@1.25.2", "", { "os": "linux", "cpu": "x64", "libc": "musl" }, "sha512-md5da0ZDhFhqZY/Zt+dlJS8CxEGNpKRiIeWSvSqzJFzNYV2EkPs+vpAlH0O0bPfN48+RQEESJ4SglfZrUcXVuA=="],
+
+    "@firecrawl/pdf-inspector-win32-x64-msvc": ["@firecrawl/pdf-inspector-win32-x64-msvc@1.25.2", "", { "os": "win32", "cpu": "x64" }, "sha512-stmH0YjPwWNjlFVLoVc1foZLE9mZAn+By+/EqyZzmpiFBIfY4WP/L02lPF70giboknko75IR2vDjbIeZPb4knw=="],
+
     "@napi-rs/canvas": ["@napi-rs/canvas@0.1.100", "", { "optionalDependencies": { "@napi-rs/canvas-android-arm64": "0.1.100", "@napi-rs/canvas-darwin-arm64": "0.1.100", "@napi-rs/canvas-darwin-x64": "0.1.100", "@napi-rs/canvas-linux-arm-gnueabihf": "0.1.100", "@napi-rs/canvas-linux-arm64-gnu": "0.1.100", "@napi-rs/canvas-linux-arm64-musl": "0.1.100", "@napi-rs/canvas-linux-riscv64-gnu": "0.1.100", "@napi-rs/canvas-linux-x64-gnu": "0.1.100", "@napi-rs/canvas-linux-x64-musl": "0.1.100", "@napi-rs/canvas-win32-arm64-msvc": "0.1.100", "@napi-rs/canvas-win32-x64-msvc": "0.1.100" } }, "sha512-xglYA6q3XO5P3BNJYxVZ1IV7DLVjp1Py6nwag88YntrS+3vKHyYcMqXVS4ZztJmwz2uGvz1FWhI/4LgbR5uQDA=="],
 
     "@napi-rs/canvas-android-arm64": ["@napi-rs/canvas-android-arm64@0.1.100", "", { "os": "android", "cpu": "arm64" }, "sha512-hjhCKhntPv9+t4ckHymdx0phYNcVW+GKQR6Lzw2zE+pOVjOplSmtx9nNNknTjbEDLcuLZqA1y8ufKg1XfgftzQ=="],

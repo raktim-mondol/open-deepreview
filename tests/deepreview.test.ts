@@ -16,7 +16,11 @@ import {
   verifyReference,
 } from "../src/citation/checker.ts";
 import { resolveConfig } from "../src/config/store.ts";
-import { parseManuscriptFile, splitTextToLines } from "../src/doc/parser.ts";
+import {
+  inspectAndConvertPdfToMarkdown,
+  parseManuscriptFile,
+  splitTextToLines,
+} from "../src/doc/parser.ts";
 import {
   computeCategoryFilterChips,
   computeQuoteBoundingBoxesOnPage,
@@ -230,6 +234,24 @@ describe("Reconstructed Target Algorithms (Google Deep Review JS bundle)", () =>
     const input = "\ufeffLine 1\r\nLine 2\rLine 3\n";
     expect(splitTextToLines(input)).toEqual(["Line 1", "Line 2", "Line 3"]);
   });
+
+  test("Firecrawl pdf-inspector: inspectAndConvertPdfToMarkdown and parseManuscriptFile convert PDF papers into clean Markdown", async () => {
+    const pdfPath = join(FIXTURES_DIR, "newton_third_law_fixture.pdf");
+    const bytes = new Uint8Array(readFileSync(pdfPath));
+    const inspected = inspectAndConvertPdfToMarkdown(bytes);
+
+    expect(String(inspected.result.pdfType)).toBe("TextBased");
+    expect(inspected.result.pageCount).toBe(4);
+    expect(inspected.result.confidence).toBeGreaterThan(0.9);
+    expect(inspected.markdown).toContain("# 4.4 Newton's Third Law of Motion");
+    expect(inspected.markdown).toContain("## Describing Newton’s Third Law of Motion");
+    expect(inspected.perPage.pages.length).toBe(4);
+
+    const parsed = await parseManuscriptFile(pdfPath);
+    expect(parsed.pdfInspector?.pdfType).toBe("TextBased");
+    expect(parsed.markdown).toContain("# 4.4 Newton's Third Law of Motion");
+    expect(parsed.pages[0].markdown).toContain("# 4.4 Newton's Third Law of Motion");
+  });
 });
 
 describe("Citation Checker & Anchoring Verification", () => {
@@ -308,8 +330,9 @@ describe("Citation Checker & Anchoring Verification", () => {
         filename: "sample.tex",
         format: "latex",
         fullText: sample,
+        markdown: sample,
         lines,
-        pages: [{ pageNumber: 1, text: sample, lines }],
+        pages: [{ pageNumber: 1, text: sample, markdown: sample, lines }],
         rawBytes: new TextEncoder().encode(sample),
       },
       "f(x) = x^2 + 2x + 1"
@@ -436,8 +459,9 @@ describe("Universal LLM Client (Custom baseUrl, apiKey, model) & Full PAT Pipeli
         filename: "theorem.md",
         format: "markdown" as const,
         fullText: manuscriptText,
+        markdown: manuscriptText,
         lines,
-        pages: [{ pageNumber: 1, text: manuscriptText, lines }],
+        pages: [{ pageNumber: 1, text: manuscriptText, markdown: manuscriptText, lines }],
         rawBytes: new TextEncoder().encode(manuscriptText),
       };
 

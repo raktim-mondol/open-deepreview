@@ -1,22 +1,49 @@
 import { readFileSync } from "node:fs";
 import { basename, extname } from "node:path";
+import {
+  classifyPdf,
+  extractPagesMarkdown,
+  extractTextWithPositions,
+  type PagesExtractionResult,
+  type PdfClassification,
+  type PdfResult,
+  processPdf,
+} from "@firecrawl/pdf-inspector";
 import type { PdfPageTextLayer, PdfTextItem } from "./target_algorithms.ts";
 import { validatePdfBuffer } from "./target_algorithms.ts";
 
+export interface PdfInspectorMetadata {
+  pdfType: string;
+  confidence: number;
+  pageCount: number;
+  processingTimeMs: number;
+  isComplexLayout: boolean;
+  pagesWithTables: number[];
+  pagesWithColumns: number[];
+  pagesNeedingOcr: number[];
+  hasEncodingIssues: boolean;
+  title?: string;
+  author?: string;
+}
+
 export interface ParsedManuscriptPage {
   pageNumber: number; // 1-indexed
-  text: string;
+  text: string;       // Clean Markdown for LLM consumption (via @firecrawl/pdf-inspector)
+  markdown: string;   // Explicit per-page Markdown
   lines: string[];
+  needsOcr?: boolean;
   pdfTextLayer?: PdfPageTextLayer;
 }
 
 export interface ParsedManuscript {
   filename: string;
   format: "pdf" | "text" | "markdown" | "latex";
-  fullText: string;
+  fullText: string;       // Page-tagged clean Markdown for LLM consumption
+  markdown: string;       // Complete clean Markdown representation of the paper
   lines: string[];
   pages: ParsedManuscriptPage[];
   rawBytes: Uint8Array;
+  pdfInspector?: PdfInspectorMetadata;
 }
 
 /**
@@ -36,8 +63,41 @@ export function splitTextToLines(text: string): string[] {
 }
 
 /**
- * Parses a PDF buffer using `pdfjs-dist` (mirroring `dta` in `module_ZZg41c.js` line 1314)
- * to extract per-page text streams, items with 6-element transform matrices, and page dimensions.
+ * Converts a PDF buffer into clean, position-aware Markdown and classification metadata
+ * using Firecrawl's `@firecrawl/pdf-inspector` Rust engine (`processPdf`, `extractPagesMarkdown`,
+ * and `classifyPdf`).
+ */
+export function inspectAndConvertPdfToMarkdown(bytes: Uint8Array): {
+  result: PdfResult;
+  perPage: PagesExtractionResult;
+  classification: PdfClassification;
+  markdown: string;
+} {
+  const validation = validatePdfBuffer(bytes);
+  if (!validation.valid) {
+    throw new Error(validation.error || "Invalid PDF document");
+  }
+  const buf = Buffer.from(bytes);
+  const classification = classifyPdf(buf);
+  const result = processPdf(buf);
+  const perPage = extractPagesMarkdown(buf);
+  const markdown =
+    result.markdown?.trim() ||
+    perPage.pages.map((p) => p.markdown.trim()).filter(Boolean).join("\n\n---\n\n");
+
+  return {
+    result,
+    perPage,
+    classification,
+    markdown,
+  };
+}
+
+/**
+ * Parses a PDF buffer using Firecrawl's `@firecrawl/pdf-inspector` as the primary
+ * PDF-to-Markdown and positioned-text engine (with `pdfjs-dist` page dimension refinement).
+ * Every page is converted into clean, LLM-friendly Markdown (headings, lists, tables,
+ * bold/italic, code blocks) while preserving exact PDF coordinates for `bta` quote-to-bbox anchoring.
  */
 export async function parsePdfBuffer(
   bytes: Uint8Array,
@@ -48,90 +108,115 @@ export async function parsePdfBuffer(
     throw new Error(validation.error || "Invalid PDF document");
   }
 
-  // Dynamically import pdfjs-dist legacy build for Node/Bun compatibility
-  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  const loadingTask = pdfjs.getDocument({
-    data: new Uint8Array(bytes),
-    useSystemFonts: true,
-    disableFontFace: true,
-    verbosity: 0,
-  });
+  const buf = Buffer.from(bytes);
+  const { result, perPage, markdown: fullDocMarkdown } = inspectAndConvertPdfToMarkdown(bytes);
+  const positionedItems = extractTextWithPositions(buf, undefined, { frame: "display" });
 
-  const pdfDoc = await loadingTask.promise;
+  // Group pdf-inspector positioned text items by 1-indexed page number
+  const itemsByPage = new Map<number, PdfTextItem[]>();
+  const maxPosByPage = new Map<number, { maxRight: number; maxTop: number }>();
+
+  for (const item of positionedItems) {
+    if (item.itemType !== "Text" || !item.text) continue;
+    const p = item.page;
+    const list = itemsByPage.get(p) ?? [];
+    list.push({
+      str: item.text,
+      transform: [item.fontSize || 10, 0, 0, item.fontSize || 10, item.x, item.y],
+      width: item.width,
+    });
+    itemsByPage.set(p, list);
+
+    const bounds = maxPosByPage.get(p) ?? { maxRight: 612, maxTop: 792 };
+    bounds.maxRight = Math.max(bounds.maxRight, item.x + item.width + 36);
+    bounds.maxTop = Math.max(bounds.maxTop, item.y + item.height + 36);
+    maxPosByPage.set(p, bounds);
+  }
+
+  // Optionally query exact page viewport dimensions from pdfjs-dist when available
+  const pageDimensions = new Map<number, { width: number; height: number }>();
+  try {
+    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const loadingTask = pdfjs.getDocument({
+      data: new Uint8Array(bytes),
+      useSystemFonts: true,
+      disableFontFace: true,
+      verbosity: 0,
+    });
+    const pdfDoc = await loadingTask.promise;
+    try {
+      for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+        const page = await pdfDoc.getPage(pageNum);
+        const vp = page.getViewport({ scale: 1 });
+        pageDimensions.set(pageNum, { width: vp.width, height: vp.height });
+      }
+    } finally {
+      await pdfDoc.destroy?.();
+    }
+  } catch {
+    // Fallback to standard US Letter / inferred bounds if pdfjs fails on an edge-case PDF
+  }
+
+  const totalPages = Math.max(1, result.pageCount || perPage.pages.length);
   const pages: ParsedManuscriptPage[] = [];
   const allLines: string[] = [];
 
-  try {
-    for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
-      const page = await pdfDoc.getPage(pageNum);
-      const viewport = page.getViewport({ scale: 1 });
-      const textContent = await page.getTextContent();
+  for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+    const pageEntry = perPage.pages.find((p) => p.page + 1 === pageNum) ?? perPage.pages[pageNum - 1];
+    const pageMd = (pageEntry?.markdown ?? "").trim();
+    const pageLines = splitTextToLines(pageMd);
+    allLines.push(`--- [Page ${pageNum}] ---`, ...pageLines);
 
-      const items: PdfTextItem[] = [];
-      const lineBuckets: Array<{ y: number; parts: Array<{ x: number; str: string }> }> = [];
+    const dims = pageDimensions.get(pageNum) ?? {
+      width: maxPosByPage.get(pageNum)?.maxRight ?? 612,
+      height: maxPosByPage.get(pageNum)?.maxTop ?? 792,
+    };
 
-      for (const rawItem of textContent.items as any[]) {
-        if (typeof rawItem.str !== "string") continue;
-        const transform = Array.isArray(rawItem.transform)
-          ? rawItem.transform.map(Number)
-          : [1, 0, 0, 1, 0, 0];
-        const width = Number(rawItem.width ?? 0);
-        items.push({
-          str: rawItem.str,
-          transform,
-          width,
-        });
-
-        const x = transform[4] ?? 0;
-        const y = transform[5] ?? 0;
-        if (!rawItem.str.trim()) continue;
-
-        const bucket = lineBuckets.find((b) => Math.abs(b.y - y) < 4);
-        if (bucket) {
-          bucket.parts.push({ x, str: rawItem.str });
-        } else {
-          lineBuckets.push({ y, parts: [{ x, str: rawItem.str }] });
-        }
-      }
-
-      // Sort top-to-bottom (descending PDF y), then left-to-right (ascending PDF x)
-      lineBuckets.sort((a, b) => b.y - a.y);
-      const pageLines = lineBuckets.map((b) => {
-        b.parts.sort((p1, p2) => p1.x - p2.x);
-        return b.parts.map((p) => p.str).join(" ").replace(/\s+/g, " ").trim();
-      });
-
-      const pageText = pageLines.join("\n");
-      allLines.push(`--- [Page ${pageNum}] ---`, ...pageLines);
-
-      pages.push({
+    pages.push({
+      pageNumber: pageNum,
+      text: pageMd,
+      markdown: pageMd,
+      lines: pageLines,
+      needsOcr: pageEntry?.needsOcr ?? false,
+      pdfTextLayer: {
         pageNumber: pageNum,
-        text: pageText,
-        lines: pageLines,
-        pdfTextLayer: {
-          pageNumber: pageNum,
-          width: viewport.width,
-          height: viewport.height,
-          items,
-        },
-      });
-    }
-  } finally {
-    await pdfDoc.destroy?.();
+        width: dims.width,
+        height: dims.height,
+        items: itemsByPage.get(pageNum) ?? [],
+      },
+    });
   }
+
+  const fullText = pages.map((p) => `[Page ${p.pageNumber}]\n${p.markdown}`).join("\n\n");
 
   return {
     filename,
     format: "pdf",
-    fullText: pages.map((p) => `[Page ${p.pageNumber}]\n${p.text}`).join("\n\n"),
+    fullText,
+    markdown: fullDocMarkdown || fullText,
     lines: allLines,
     pages,
     rawBytes: bytes,
+    pdfInspector: {
+      pdfType: String(result.pdfType),
+      confidence: result.confidence,
+      pageCount: result.pageCount,
+      processingTimeMs: result.processingTimeMs,
+      isComplexLayout: result.isComplexLayout,
+      pagesWithTables: result.pagesWithTables,
+      pagesWithColumns: result.pagesWithColumns,
+      pagesNeedingOcr: result.pagesNeedingOcr,
+      hasEncodingIssues: result.hasEncodingIssues,
+      title: result.title,
+      author: result.author,
+    },
   };
 }
 
 /**
  * Parses any supported manuscript file (`.pdf`, `.tex`, `.md`, `.markdown`, `.txt`).
+ * When a `.pdf` is provided, it is automatically converted into clean Markdown via
+ * Firecrawl's `@firecrawl/pdf-inspector` so that any LLM can read it accurately.
  */
 export async function parseManuscriptFile(filePath: string): Promise<ParsedManuscript> {
   const bytes = new Uint8Array(readFileSync(filePath));
@@ -166,23 +251,24 @@ export async function parseManuscriptFile(filePath: string): Promise<ParsedManus
   for (let i = 0; i < lines.length; i += linesPerPage) {
     const slice = lines.slice(i, i + linesPerPage);
     const pageNum = Math.floor(i / linesPerPage) + 1;
+    const pageText = slice.map((line, idx) => `[L${i + idx + 1}] ${line}`).join("\n");
     pages.push({
       pageNumber: pageNum,
-      text: slice
-        .map((line, idx) => `[L${i + idx + 1}] ${line}`)
-        .join("\n"),
+      text: pageText,
+      markdown: slice.join("\n"),
       lines: slice,
     });
   }
 
   if (pages.length === 0) {
-    pages.push({ pageNumber: 1, text: "", lines: [] });
+    pages.push({ pageNumber: 1, text: "", markdown: "", lines: [] });
   }
 
   return {
     filename,
     format,
     fullText: lines.map((l, idx) => `[L${idx + 1}] ${l}`).join("\n"),
+    markdown: text,
     lines,
     pages,
     rawBytes: bytes,
