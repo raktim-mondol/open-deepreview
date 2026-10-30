@@ -47,11 +47,11 @@ See [`docs/REVERSE_ENGINEERING_REPORT.md`](./docs/REVERSE_ENGINEERING_REPORT.md)
 - **Bring Your Own LLM (`--base-url`, `--api-key`, `--model`)**: Works with any OpenAI-compatible endpoint (`https://api.openai.com/v1`, OpenRouter, Ollama, vLLM, DeepSeek, Groq, Together, Gemini OpenAI endpoint), native Google Gemini (`https://generativelanguage.googleapis.com`), or native Anthropic (`https://api.anthropic.com`).
 - **Native Rust PDF-to-Markdown Engine (`@firecrawl/pdf-inspector`)**: Automatically converts any PDF paper into clean, position-aware Markdown (`processPdf`, `extractPagesMarkdown`, `extractTextWithPositions`) before feeding it to the LLM, and provides a standalone `deepreview pdf2md` (`pdf-inspector`) CLI subcommand.
 - **Full 4-Stage PAT Pipeline (`deepreview review`)**:
-  - Stage 1: Overlapping thematic page segmentation
+  - Stage 1: Overlapping thematic page segmentation + **NeurIPS 2026 Contribution Type Classification** (`THEORY`, `EMPIRICAL_ML`, `USE_INSPIRED`, `CONCEPT_FEASIBILITY`, `NEGATIVE_RESULTS`, `SURVEY_POSITION`, `GENERAL`)
   - Stage 2: Adaptive compute budgeting (`LIGHT` / `MEDIUM` / `HIGH`) across `LOW`, `MID`, `HIGH`, and `EXTRA_HIGH` topologies
   - Stage 3: Multi-pass parallel verification + per-segment skeptical consolidation
-  - Stage 4: Global synthesis, `scholar_peer` overview, and `citation_checker`
-  - **Markdown Review Output**: Emits the structured Deep Review report in Markdown (`# HIGH LEVEL SUMMARY`, `## Potential Issues And Suggestions`, `# CITATION & REFERENCE VERIFICATION`) and automatically writes `<paper>.review.md` (or `-o <path.md>`).
+  - Stage 4: Global synthesis, `scholar_peer` overview, **ICML Claim-to-Evidence Graph Mapping**, **NeurIPS Reproducibility & Rigor Checklist**, **High-Leverage Questions for Authors**, **ACL ARR H1–H17 Lazy-Heuristic Guardrail**, **ReviewEval Actionability Triad Audit**, and `citation_checker`
+  - **Markdown Review Output**: Emits the structured Deep Review report in Markdown (`# HIGH LEVEL SUMMARY`, `## Issue Overview`, `## Claims and Evidence`, `## Reproducibility and Rigor Checklist`, `## Questions for the Authors`, `## Potential Issues And Suggestions`, `# CITATION & REFERENCE VERIFICATION`, and `# REVIEW QUALITY AUDIT`) and automatically writes `<paper>.review.md` (or `-o <path.md>`).
 - **Scholarly Citation Verification (`deepreview verify-citations`)**: Extracts bibliography entries, queries **OpenAlex** and **Crossref** (`doi`, `title`, `title_author`, `autocomplete`), compares `title`, `authors`, `year`, `journal`, `volume`, `pages`, and `doi`, generates BibTeX, and classifies each reference (`OK`, `MINOR_MISMATCH`, `MAJOR_MISMATCH`, `VERIFIED_BY_SEARCH`, `NOT_FOUND`, `HALLUCINATED`, `SKIPPED`).
 - **Exact Client-Side Target Algorithms**:
   - `bta` / `NN`: PDF quote-to-normalized-bounding-box (`[0, 1]`) engine using `pdfjs-dist`

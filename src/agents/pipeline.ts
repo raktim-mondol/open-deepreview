@@ -7,10 +7,15 @@ import { sortAnchoredComments } from "../doc/target_algorithms.ts";
 import { UniversalLLMClient } from "../llm/client.ts";
 import type {
   AnchoredReviewComment,
+  AuthorRebuttalQuestion,
   CitationReport,
+  ClaimEvidenceMapping,
+  ContributionType,
   EstimateReviewCostResponse,
   Money,
+  ReproducibilityChecklistItem,
   Review,
+  ReviewQualityAudit,
   Severity,
   ThinkingLevel,
   Topology,
@@ -24,6 +29,30 @@ import {
   SYNTHESIS_SYSTEM,
   VERIFIER_SYSTEM,
 } from "./prompts.ts";
+import {
+  detectLazyReviewHeuristics,
+  enforceReviewQualityAndPrinciples,
+  normalizeChecklist,
+  normalizeClaimEvidenceMap,
+} from "./review_heuristics.ts";
+
+export interface ScholarWeakness {
+  text: string;
+  severity?: string;
+  summary?: string;
+  page?: number;
+  quote?: string;
+}
+
+export interface ScholarPeerResult {
+  summary: string;
+  strengths: string[];
+  weaknesses: ScholarWeakness[];
+  claimEvidenceMap: ClaimEvidenceMapping[];
+  reproducibilityChecklist: ReproducibilityChecklistItem[];
+  questionsForAuthors: AuthorRebuttalQuestion[];
+  lazyDropped: string[];
+}
 
 export type Complexity = "LIGHT" | "MEDIUM" | "HIGH";
 
@@ -125,6 +154,7 @@ export class DeepReviewPipeline {
   private readonly cfg: LLMUserConfig;
   private readonly opts: PipelineOptions;
   private readonly profile;
+  public contributionType: ContributionType = "GENERAL";
 
   constructor(opts: PipelineOptions) {
     this.opts = opts;
@@ -149,7 +179,7 @@ export class DeepReviewPipeline {
       : "";
   }
 
-  /** Stage 1: Document Segmentation (+ Stage 2 adaptive budget labels). */
+  /** Stage 1: Document Segmentation & Contribution-Type Classification (+ Stage 2 adaptive budget labels). */
   async segment(doc: ParsedManuscript): Promise<Segment[]> {
     const maxSegments = Math.min(12, Math.max(2, Math.ceil(doc.pages.length / 2)));
     const outline = doc.pages
@@ -161,7 +191,23 @@ export class DeepReviewPipeline {
       jsonMode: true,
       temperature: 0,
     });
-    const parsed = UniversalLLMClient.parseJsonResponse<{ segments?: Segment[] }>(res.content, {});
+    const parsed = UniversalLLMClient.parseJsonResponse<{
+      contribution_type?: string;
+      segments?: Segment[];
+    }>(res.content, {});
+    const rawCt = String(parsed.contribution_type ?? "GENERAL").toUpperCase();
+    const validCts: ContributionType[] = [
+      "GENERAL",
+      "THEORY",
+      "EMPIRICAL_ML",
+      "USE_INSPIRED",
+      "CONCEPT_FEASIBILITY",
+      "NEGATIVE_RESULTS",
+      "SURVEY_POSITION",
+    ];
+    this.contributionType = (validCts as string[]).includes(rawCt)
+      ? (rawCt as ContributionType)
+      : "GENERAL";
     const valid = new Set(doc.pages.map((p) => p.pageNumber));
     let segs = (parsed.segments ?? [])
       .map((s) => ({
@@ -250,10 +296,15 @@ export class DeepReviewPipeline {
     return { summary: String(merged.segment_summary ?? ""), issues };
   }
 
-  /** Stage 4: Global synthesis — dedupe, severity check, hallucination check, category limits. */
-  async synthesize(candidates: CandidateIssue[]): Promise<CandidateIssue[]> {
+  /** Stage 4: Global synthesis, ReviewEval actionability audit, ACL ARR lazy-heuristic filter, and category limits. */
+  async synthesize(candidates: CandidateIssue[]): Promise<{
+    kept: CandidateIssue[];
+    qualityAudit: ReviewQualityAudit;
+  }> {
     const maxIssues = this.profile.maxCommentsPerReview;
-    if (candidates.length === 0) return [];
+    if (candidates.length === 0) {
+      return { kept: [], qualityAudit: enforceReviewQualityAndPrinciples([], this.contributionType).audit };
+    }
     const compact = candidates.map((c) => ({
       id: c.id,
       segment: c.segmentIndex,
@@ -265,21 +316,34 @@ export class DeepReviewPipeline {
     const res = await this.llm
       .complete({
         systemPrompt: SYNTHESIS_SYSTEM.replace("{MAX_ISSUES}", String(maxIssues)),
-        userPrompt: `CANDIDATE ISSUES:\n${JSON.stringify(compact, null, 1)}`,
+        userPrompt: `CONTRIBUTION TYPE: ${this.contributionType}\n\nCANDIDATE ISSUES:\n${JSON.stringify(compact, null, 1)}`,
         jsonMode: true,
         temperature: 0,
       })
       .catch(() => null);
     let kept = candidates;
+    let llmLazyRemoved: string[] = [];
     if (res) {
-      const parsed = UniversalLLMClient.parseJsonResponse<{ keep?: Array<{ id: string; severity?: string }> }>(res.content, {});
+      const parsed = UniversalLLMClient.parseJsonResponse<{
+        keep?: Array<{ id: string; severity?: string }>;
+        lazy_heuristics_removed?: string[];
+      }>(res.content, {});
       if (parsed.keep && parsed.keep.length) {
         const byId = new Map(candidates.map((c) => [c.id, c]));
         kept = parsed.keep
           .filter((k) => byId.has(k.id))
           .map((k) => ({ ...byId.get(k.id)!, severity: k.severity ? normSeverity(k.severity) : byId.get(k.id)!.severity }));
       }
+      if (Array.isArray(parsed.lazy_heuristics_removed)) {
+        llmLazyRemoved = parsed.lazy_heuristics_removed.map(String);
+      }
     }
+
+    // Deterministic guardrails: ACL ARR lazy heuristics, NeurIPS theory guardrail, ReviewEval actionability triad
+    const { refinedIssues, lazyHeuristicsRemoved, audit } = enforceReviewQualityAndPrinciples(kept, this.contributionType);
+    kept = refinedIssues;
+    audit.lazyHeuristicsRemoved = [...new Set([...llmLazyRemoved, ...lazyHeuristicsRemoved])];
+
     // enforce_category_limits: cap per segment and total
     if (this.cfg.patModules?.pat?.enforce_category_limits !== false) {
       const perSeg = Math.max(6, Math.ceil(maxIssues / 4));
@@ -292,24 +356,27 @@ export class DeepReviewPipeline {
           return n <= perSeg;
         });
     }
-    return kept.slice(0, Math.min(maxIssues, 300));
+    return { kept: kept.slice(0, Math.min(maxIssues, 300)), qualityAudit: audit };
   }
 
-  async scholarPeer(doc: ParsedManuscript) {
+  async scholarPeer(doc: ParsedManuscript): Promise<ScholarPeerResult> {
     const res = await this.llm.complete({
       systemPrompt: SCHOLAR_PEER_SYSTEM,
-      userPrompt: `MANUSCRIPT:\n\n${fullContext(doc)}${this.userGuidance()}`,
+      userPrompt: `CONTRIBUTION TYPE: ${this.contributionType}\n\nMANUSCRIPT:\n\n${fullContext(doc)}${this.userGuidance()}`,
       jsonMode: true,
       temperature: 0.3,
     });
     const parsed = UniversalLLMClient.parseJsonResponse<{
       summary?: string;
       strengths?: string[];
-      weaknesses?: Array<{ text: string; severity?: string; summary?: string; page?: number; quote?: string }>;
+      weaknesses?: ScholarWeakness[];
+      claim_evidence_map?: Array<Partial<ClaimEvidenceMapping>>;
+      reproducibility_checklist?: Array<Partial<ReproducibilityChecklistItem>>;
+      questions_for_authors?: Array<Partial<AuthorRebuttalQuestion>>;
     }>(res.content, {});
 
     // Search grounding of "(Reference Paper: Title, Year)" mentions — remove hallucinated works
-    const weaknesses = parsed.weaknesses ?? [];
+    const weaknesses = (parsed.weaknesses ?? []).filter((w) => w && w.text);
     if (this.cfg.patModules?.pat?.enable_search !== false) {
       const refs = [...new Set(weaknesses.flatMap((w) => [...String(w.text).matchAll(/\(Reference Paper: ([^)]+)\)/g)].map((m) => m[1])))];
       if (refs.length) {
@@ -325,7 +392,38 @@ export class DeepReviewPipeline {
         }
       }
     }
-    return { summary: parsed.summary ?? "", strengths: parsed.strengths ?? [], weaknesses };
+
+    // Apply ACL ARR lazy-heuristic filter to high-level weaknesses too
+    const lazyDropped: string[] = [];
+    const filteredWeaknesses = weaknesses.filter((w) => {
+      const hits = detectLazyReviewHeuristics(w.text);
+      if (hits.length && !/\(Reference Paper:/.test(w.text) && normSeverity(w.severity) !== "CRITICAL") {
+        lazyDropped.push(...hits.map((h) => `${h} (weakness: ${String(w.summary ?? w.text).slice(0, 60)})`));
+        return false;
+      }
+      return true;
+    });
+
+    const questionsForAuthors: AuthorRebuttalQuestion[] = (parsed.questions_for_authors ?? [])
+      .filter((q) => q && q.question)
+      .map((q, idx) => ({
+        questionNumber: Number(q.questionNumber ?? idx + 1),
+        question: String(q.question).trim(),
+        linkedIssueSummary: q.linkedIssueSummary ? String(q.linkedIssueSummary).trim() : undefined,
+        howResponseChangesEvaluation: String(
+          q.howResponseChangesEvaluation || "A clear justification or additional evidence would resolve this concern."
+        ).trim(),
+      }));
+
+    return {
+      summary: parsed.summary ?? "",
+      strengths: (parsed.strengths ?? []).map(String),
+      weaknesses: filteredWeaknesses,
+      claimEvidenceMap: normalizeClaimEvidenceMap(parsed.claim_evidence_map),
+      reproducibilityChecklist: normalizeChecklist(parsed.reproducibility_checklist, this.contributionType),
+      questionsForAuthors,
+      lazyDropped,
+    };
   }
 
   async run(doc: ParsedManuscript): Promise<Review> {
@@ -335,14 +433,24 @@ export class DeepReviewPipeline {
     const modules = this.cfg.patModules;
     const conc = this.opts.concurrency ?? 4;
 
-    this.progress("SEGMENTATION", 3, "Segmenting manuscript into logical components");
+    this.progress("SEGMENTATION", 3, "Segmenting manuscript and classifying contribution type");
     const segments = await this.segment(doc);
 
-    this.progress("ADAPTIVE_BUDGETING", 8, `Allocated budgets for ${segments.length} segments`);
+    this.progress("ADAPTIVE_BUDGETING", 8, `Contribution type ${this.contributionType}; allocated budgets for ${segments.length} segments`);
+
+    const emptyScholar = (): ScholarPeerResult => ({
+      summary: "",
+      strengths: [],
+      weaknesses: [],
+      claimEvidenceMap: [],
+      reproducibilityChecklist: normalizeChecklist([], this.contributionType),
+      questionsForAuthors: [],
+      lazyDropped: [],
+    });
 
     const scholarP = modules?.scholar_peer?.enabled !== false
-      ? this.scholarPeer(doc).catch(() => ({ summary: "", strengths: [] as string[], weaknesses: [] as any[] }))
-      : Promise.resolve({ summary: "", strengths: [] as string[], weaknesses: [] as any[] });
+      ? this.scholarPeer(doc).catch(() => emptyScholar())
+      : Promise.resolve(emptyScholar());
 
     const citationP: Promise<CitationReport[]> = modules?.citation_checker?.enabled !== false
       ? runCitationChecker(this.llm, doc.fullText, {
@@ -360,15 +468,16 @@ export class DeepReviewPipeline {
       return r;
     });
 
-    this.progress("GLOBAL_SYNTHESIS", 82, "De-duplicating critiques, severity checking and grounding");
-    const kept = await this.synthesize(segResults.flatMap((r) => r.issues));
+    this.progress("GLOBAL_SYNTHESIS", 82, "De-duplicating, calibrating severity, filtering lazy heuristics, auditing actionability");
+    const { kept, qualityAudit } = await this.synthesize(segResults.flatMap((r) => r.issues));
     const scholar = await scholarP;
+    qualityAudit.lazyHeuristicsRemoved = [...new Set([...qualityAudit.lazyHeuristicsRemoved, ...scholar.lazyDropped])];
     this.progress("CITATION_CHECK", 92, "Verifying references against OpenAlex and Crossref");
     const citations = await citationP;
 
-    this.progress("REPORT", 97, "Assembling report and anchoring comments");
+    this.progress("REPORT", 97, "Assembling Markdown report and anchoring comments");
     const anchored = this.buildAnchoredComments(doc, kept, scholar.weaknesses, citations, segments, segResults);
-    const markdown = this.renderMarkdown(doc, segments, segResults, kept, scholar, citations);
+    const markdown = this.renderMarkdown(doc, segments, segResults, kept, scholar, citations, qualityAudit);
 
     this.progress("DONE", 100, "Review succeeded");
     return {
@@ -386,14 +495,22 @@ export class DeepReviewPipeline {
         userPrompt: this.opts.userPrompt,
         patModules: this.cfg.patModules,
       },
-      result: { reviewMarkdown: markdown, anchoredComments: anchored },
+      result: {
+        reviewMarkdown: markdown,
+        anchoredComments: anchored,
+        contributionType: this.contributionType,
+        claimEvidenceMap: scholar.claimEvidenceMap,
+        reproducibilityChecklist: scholar.reproducibilityChecklist,
+        questionsForAuthors: scholar.questionsForAuthors,
+        reviewQualityAudit: qualityAudit,
+      },
     };
   }
 
   buildAnchoredComments(
     doc: ParsedManuscript,
     issues: CandidateIssue[],
-    weaknesses: Array<{ text: string; severity?: string; summary?: string; page?: number; quote?: string }>,
+    weaknesses: ScholarWeakness[],
     citations: CitationReport[],
     segments: Segment[],
     segResults: Array<{ summary: string }>
@@ -457,36 +574,146 @@ export class DeepReviewPipeline {
     segments: Segment[],
     segResults: Array<{ summary: string }>,
     issues: CandidateIssue[],
-    scholar: { summary: string; strengths: string[]; weaknesses: Array<{ text: string }> },
-    citations: CitationReport[]
+    scholar: ScholarPeerResult,
+    citations: CitationReport[],
+    audit?: ReviewQualityAudit
   ): string {
-    const L: string[] = ["# HIGH LEVEL SUMMARY", "---", "## Summary", scholar.summary || "(No summary produced.)", ""];
+    const L: string[] = ["# HIGH LEVEL SUMMARY", "---"];
+    L.push(
+      `**Manuscript:** ${doc.filename} | **Contribution type:** ${CONTRIBUTION_LABELS[this.contributionType]} | **Pages:** ${doc.pages.length}`,
+      ""
+    );
+    L.push("## Summary", scholar.summary || "(No summary produced.)", "");
     if (scholar.strengths.length) {
       L.push("## Strengths", ...scholar.strengths.map((s) => `* ${s}`), "");
     }
     if (scholar.weaknesses.length) {
-      L.push("## Weaknesses", ...scholar.weaknesses.map((w) => `* ${w.text}`), "");
+      L.push(
+        "## Weaknesses",
+        ...scholar.weaknesses.map((w) => `* **[${normSeverity(w.severity ?? "MAJOR")}]** ${w.text}`),
+        ""
+      );
     }
+
+    // Severity overview
+    const sevCounts = { CRITICAL: 0, MAJOR: 0, MINOR: 0, SUGGESTION: 0 } as Record<string, number>;
+    for (const i of issues) sevCounts[i.severity] = (sevCounts[i.severity] ?? 0) + 1;
+    L.push(
+      "## Issue Overview",
+      "",
+      "| Critical | Major | Minor | Suggestion |",
+      "|---|---|---|---|",
+      `| ${sevCounts.CRITICAL} | ${sevCounts.MAJOR} | ${sevCounts.MINOR} | ${sevCounts.SUGGESTION} |`,
+      ""
+    );
+
+    if (scholar.claimEvidenceMap.length) {
+      L.push(
+        "## Claims and Evidence",
+        "",
+        "| ID | Claim | Evidence | Type | Status | Gap |",
+        "|---|---|---|---|---|---|",
+        ...scholar.claimEvidenceMap.map(
+          (c) =>
+            `| ${c.claimId} | ${mdCell(c.claim)} | ${mdCell(c.evidenceLocation)} | ${c.evidenceType} | ${CLAIM_STATUS_LABELS[c.status]} | ${mdCell(c.gapAnalysis || "-")} |`
+        ),
+        ""
+      );
+    }
+
+    if (scholar.reproducibilityChecklist.length) {
+      L.push(
+        "## Reproducibility and Rigor Checklist",
+        "",
+        "| Item | Status | Evidence / Suggestion |",
+        "|---|---|---|",
+        ...scholar.reproducibilityChecklist.map(
+          (c) => `| ${mdCell(c.label)} | ${c.status} | ${mdCell(c.evidenceAndSuggestion)} |`
+        ),
+        ""
+      );
+    }
+
+    if (scholar.questionsForAuthors.length) {
+      L.push("## Questions for the Authors", "");
+      for (const q of scholar.questionsForAuthors) {
+        L.push(`${q.questionNumber}. ${q.question}`);
+        L.push(`    * Why it matters: ${q.howResponseChangesEvaluation}`);
+      }
+      L.push("");
+    }
+
     L.push("## Potential Issues And Suggestions", "");
     segments.forEach((s, idx) => {
-      const segIssues = issues.filter((i) => i.segmentIndex === idx);
+      const segIssues = issues
+        .filter((i) => i.segmentIndex === idx)
+        .sort((a, b) => (SEVERITY_RANK[b.severity] ?? 0) - (SEVERITY_RANK[a.severity] ?? 0));
       if (segIssues.length === 0 && !segResults[idx]?.summary) return;
       L.push(`### [${s.title}] (${pageRangeLabel(s.pages)})`);
+      if (segResults[idx]?.summary) L.push("", `> ${segResults[idx].summary.replace(/\n+/g, " ")}`, "");
       const mistakes = segIssues.filter((i) => i.category === "mistake");
       const minor = segIssues.filter((i) => i.category === "minor");
       if (mistakes.length) {
         L.push("#### Potential Mistakes and Improvements", "");
-        for (const m of mistakes) L.push(`*   **${m.title}:** ${m.body}`, "");
+        for (const m of mistakes) L.push(renderIssue(m), "");
       }
       if (minor.length) {
         L.push("#### Minor Corrections and Typos", "");
-        for (const m of minor) L.push(`*   **${m.title}:** ${m.body}`, "");
+        for (const m of minor) L.push(renderIssue(m), "");
       }
       if (!mistakes.length && !minor.length) L.push("", "No significant issues identified in this segment.", "");
     });
     L.push(renderCitationSection(citations));
+
+    if (audit) {
+      L.push(
+        "",
+        "# REVIEW QUALITY AUDIT",
+        "---",
+        "Self-check of this review against peer-review best practice (ReviewEval actionability, ACL ARR reviewing guidelines, and fidelity/clarity/fairness/proportionality/constructiveness principles).",
+        "",
+        "| Metric | Value |",
+        "|---|---|",
+        `| Actionable comments (specific + feasible + concrete fix) | ${audit.actionabilityScorePct}% |`,
+        `| Comments anchored to a verbatim quote | ${Math.round(audit.factualAccuracyScore * 100)}% |`,
+        `| Principles passed | ${Object.entries(audit.principlesPassed).filter(([, v]) => v).map(([k]) => k).join(", ") || "none"} |`,
+        ""
+      );
+      if (audit.lazyHeuristicsRemoved.length) {
+        L.push("Filtered or downgraded comments (lazy-reviewing heuristics):", ...audit.lazyHeuristicsRemoved.map((h) => `* ${h}`), "");
+      }
+    }
     return L.join("\n");
   }
+}
+
+const CONTRIBUTION_LABELS: Record<ContributionType, string> = {
+  GENERAL: "General research",
+  THEORY: "Theory",
+  EMPIRICAL_ML: "Empirical / methods",
+  USE_INSPIRED: "Use-inspired / application",
+  CONCEPT_FEASIBILITY: "Concept and feasibility",
+  NEGATIVE_RESULTS: "Negative results",
+  SURVEY_POSITION: "Survey / position",
+};
+
+const CLAIM_STATUS_LABELS: Record<ClaimEvidenceMapping["status"], string> = {
+  SUPPORTED: "Supported",
+  PARTIALLY_SUPPORTED: "Partially supported",
+  UNSUPPORTED: "Unsupported",
+  OVERCLAIMED: "Overclaimed",
+};
+
+function mdCell(s: string): string {
+  return String(s ?? "").replace(/\|/g, "\\|").replace(/\s*\n\s*/g, " ").trim();
+}
+
+function renderIssue(m: CandidateIssue): string {
+  const lines = [`*   **[${m.severity}] ${m.title}** (page ${m.page})`];
+  if (m.quote) lines.push(`    > "${m.quote.replace(/\s*\n\s*/g, " ")}"`);
+  lines.push(`    ${m.body.replace(/\n/g, "\n    ")}`);
+  if (m.suggested_edit) lines.push(`    * Suggested edit: \`${m.suggested_edit.replace(/`/g, "'")}\``);
+  return lines.join("\n");
 }
 
 export function usdToMoney(usd: number): Money {

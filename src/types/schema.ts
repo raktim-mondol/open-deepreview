@@ -158,9 +158,70 @@ export interface Status {
   details?: Array<Record<string, unknown>>;
 }
 
+export type ContributionType =
+  | "GENERAL"
+  | "THEORY"
+  | "EMPIRICAL_ML"
+  | "USE_INSPIRED"
+  | "CONCEPT_FEASIBILITY"
+  | "NEGATIVE_RESULTS"
+  | "SURVEY_POSITION";
+
+export interface ClaimEvidenceMapping {
+  claimId: string;
+  claim: string;
+  page?: number;
+  evidenceLocation: string;
+  evidenceType: "PROOF" | "EXPERIMENT" | "CITATION" | "ABLATION" | "NONE";
+  status: "SUPPORTED" | "PARTIALLY_SUPPORTED" | "UNSUPPORTED" | "OVERCLAIMED";
+  gapAnalysis: string;
+}
+
+export interface ReproducibilityChecklistItem {
+  key:
+    | "claims_match_evidence"
+    | "limitations_discussed"
+    | "theory_assumptions_and_proofs"
+    | "experimental_reproducibility"
+    | "code_and_data_availability"
+    | "experimental_hyperparameters_and_splits"
+    | "statistical_significance_and_error_bars"
+    | "compute_resources_reported"
+    | "broader_impacts_and_ethics";
+  label: string;
+  status: "YES" | "NO" | "PARTIAL" | "NA";
+  evidenceAndSuggestion: string;
+}
+
+export interface AuthorRebuttalQuestion {
+  questionNumber: number;
+  question: string;
+  linkedIssueSummary?: string;
+  howResponseChangesEvaluation: string;
+}
+
+export interface ReviewQualityAudit {
+  actionabilityScorePct: number; // ReviewEval S_act [0..100]
+  depthScoreNormalized: number;  // ReviewEval S_depth [0..1]
+  factualAccuracyScore: number;  // ReviewEval S_factual [0..1]
+  lazyHeuristicsRemoved: string[]; // ACL ARR H1-H17 violations caught and rewritten/dropped
+  principlesPassed: {
+    fidelity: boolean;
+    clarity: boolean;
+    fairness: boolean;
+    proportionality: boolean;
+    constructiveness: boolean;
+  };
+}
+
 export interface Result {
   reviewMarkdown?: string;
   anchoredComments?: AnchoredReviewComment[]; // Max 300 per review
+  contributionType?: ContributionType;
+  claimEvidenceMap?: ClaimEvidenceMapping[];
+  reproducibilityChecklist?: ReproducibilityChecklistItem[];
+  questionsForAuthors?: AuthorRebuttalQuestion[];
+  reviewQualityAudit?: ReviewQualityAudit;
   error?: Status;
 }
 

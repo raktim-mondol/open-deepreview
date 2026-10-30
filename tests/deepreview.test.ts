@@ -8,6 +8,11 @@ import {
   passesForSegment,
 } from "../src/agents/pipeline.ts";
 import {
+  detectLazyReviewHeuristics,
+  enforceReviewQualityAndPrinciples,
+  scoreIssueActionability,
+} from "../src/agents/review_heuristics.ts";
+import {
   compareFields,
   deriveLookupVerdict,
   formatBibtex,
@@ -252,6 +257,67 @@ describe("Reconstructed Target Algorithms (Google Deep Review JS bundle)", () =>
     expect(parsed.markdown).toContain("# 4.4 Newton's Third Law of Motion");
     expect(parsed.pages[0].markdown).toContain("# 4.4 Newton's Third Law of Motion");
   });
+
+  test("ACL ARR Lazy-Heuristic Filter, NeurIPS Theory Guardrail & ReviewEval Actionability Triad", () => {
+    // H7 ("method is too simple") and H5 ("does not beat SOTA") should be flagged
+    const h7Hits = detectLazyReviewHeuristics("The proposed method is too simple and trivial extension.");
+    expect(h7Hits.some((h) => h.startsWith("H7:"))).toBe(true);
+
+    const h3WithoutRef = detectLazyReviewHeuristics("This paper lacks novelty.");
+    expect(h3WithoutRef.some((h) => h.startsWith("H3:"))).toBe(true);
+
+    // H3 with a real reference year/citation should NOT be flagged as a lazy heuristic
+    const h3WithRef = detectLazyReviewHeuristics(
+      "This theorem is equivalent to the bound proven in Smith et al. (2022)."
+    );
+    expect(h3WithRef.length).toBe(0);
+
+    // ReviewEval Actionability Triad: specificity (\sigma) + feasibility (\phi) + implementationDetail (\delta)
+    const actionableScore = scoreIssueActionability({
+      quote: "Let f(x) > 0 for all x in R",
+      body: "In Theorem 2, Equation 4 fails at x = 0. **Suggested Action:** Replace strict inequality with f(x) >= 0.",
+      page: 2,
+    });
+    expect(actionableScore.specificity).toBe(1);
+    expect(actionableScore.feasibility).toBe(1);
+    expect(actionableScore.implementationDetail).toBe(1);
+    expect(actionableScore.isActionable).toBe(true);
+
+    // NeurIPS Theory Guardrail: drops unfair demand for empirical benchmarks on a pure THEORY paper
+    const { refinedIssues, lazyHeuristicsRemoved, audit } = enforceReviewQualityAndPrinciples(
+      [
+        {
+          id: "s0-i1",
+          segmentIndex: 0,
+          title: "Missing Empirical Benchmarks",
+          summary: "Lacks experiments on benchmarks",
+          category: "mistake",
+          severity: "MAJOR",
+          page: 1,
+          quote: "",
+          body: "The paper lacks experiments on benchmarks and has no empirical evaluation.",
+          suggested_edit: "",
+        },
+        {
+          id: "s0-i2",
+          segmentIndex: 0,
+          title: "Unbounded Variance in Lemma 3",
+          summary: "Lemma 3 variance bound",
+          category: "mistake",
+          severity: "CRITICAL",
+          page: 3,
+          quote: "Var(X_t) <= C for all t",
+          body: "In Lemma 3, the variance grows linearly with t unless step size decays.",
+          suggested_edit: "Assume \\eta_t = O(1/t)",
+        },
+      ],
+      "THEORY"
+    );
+    expect(refinedIssues.length).toBe(1);
+    expect(refinedIssues[0].id).toBe("s0-i2");
+    expect(lazyHeuristicsRemoved.some((r) => r.includes("NeurIPS Theory Guardrail"))).toBe(true);
+    expect(audit.actionabilityScorePct).toBe(100);
+  });
 });
 
 describe("Citation Checker & Anchoring Verification", () => {
@@ -359,8 +425,9 @@ describe("Universal LLM Client (Custom baseUrl, apiKey, model) & Full PAT Pipeli
         const sys: string = body.messages?.[0]?.content ?? "";
         let reply: unknown = {};
 
-        if (sys.includes("Segmenter agent")) {
+        if (sys.includes("Segmenter")) {
           reply = {
+            contribution_type: "THEORY",
             segments: [
               {
                 title: "Main Theorem & Proof",
@@ -382,7 +449,7 @@ describe("Universal LLM Client (Custom baseUrl, apiKey, model) & Full PAT Pipeli
                 severity: "CRITICAL",
                 page: 1,
                 quote: "Strictly positive for all real x",
-                body: "For $x = 0$, $x^2 = 0$, violating strict positivity.",
+                body: "For $x = 0$, $x^2 = 0$, violating strict positivity. **Suggested Action:** Replace strict positivity with non-negativity.",
                 suggested_edit: "Non-negative for all real x",
               },
             ],
@@ -398,16 +465,17 @@ describe("Universal LLM Client (Custom baseUrl, apiKey, model) & Full PAT Pipeli
                 severity: "CRITICAL",
                 page: 1,
                 quote: "Strictly positive for all real x",
-                body: "For $x = 0$, $x^2 = 0$, violating strict positivity.",
+                body: "For $x = 0$, $x^2 = 0$, violating strict positivity. **Suggested Action:** Replace strict positivity with non-negativity.",
                 suggested_edit: "Non-negative for all real x",
               },
             ],
           };
-        } else if (sys.includes("Global Synthesis agent")) {
+        } else if (sys.includes("Global Synthesis")) {
           reply = {
             keep: [{ id: "s0-i0", severity: "CRITICAL" }],
+            lazy_heuristics_removed: [],
           };
-        } else if (sys.includes("Scholar Peer agent")) {
+        } else if (sys.includes("Scholar Peer")) {
           reply = {
             summary: "The paper investigates quadratic positivity.",
             strengths: ["Clear problem formulation."],
@@ -418,6 +486,33 @@ describe("Universal LLM Client (Custom baseUrl, apiKey, model) & Full PAT Pipeli
                 summary: "Origin boundary case",
                 page: 1,
                 quote: "Strictly positive for all real x",
+              },
+            ],
+            claim_evidence_map: [
+              {
+                claimId: "C1",
+                claim: "f(x) = x^2 is strictly positive for all real x",
+                page: 1,
+                evidenceLocation: "Theorem 1",
+                evidenceType: "PROOF",
+                status: "UNSUPPORTED",
+                gapAnalysis: "Counterexample at x = 0 where f(0) = 0.",
+              },
+            ],
+            reproducibility_checklist: [
+              {
+                key: "claims_match_evidence",
+                label: "Claims Match Evidence",
+                status: "NO",
+                evidenceAndSuggestion: "Theorem 1 fails at x = 0.",
+              },
+            ],
+            questions_for_authors: [
+              {
+                questionNumber: 1,
+                question: "Should the domain of Theorem 1 be R \\ {0}?",
+                linkedIssueSummary: "Origin boundary case",
+                howResponseChangesEvaluation: "Restricting the domain to non-zero reals resolves the CRITICAL proof error.",
               },
             ],
           };
@@ -475,7 +570,16 @@ describe("Universal LLM Client (Custom baseUrl, apiKey, model) & Full PAT Pipeli
       expect(review.state).toBe("SUCCEEDED");
       expect(review.runConfig?.model).toBe(customModel);
       expect(review.runConfig?.baseUrl).toBe(customBaseUrl);
+      expect(review.result?.contributionType).toBe("THEORY");
+      expect(review.result?.claimEvidenceMap?.length).toBe(1);
+      expect(review.result?.reproducibilityChecklist?.length).toBe(9);
+      expect(review.result?.questionsForAuthors?.length).toBe(1);
+      expect(review.result?.reviewQualityAudit?.actionabilityScorePct).toBe(100);
       expect(review.result?.reviewMarkdown).toContain("# HIGH LEVEL SUMMARY");
+      expect(review.result?.reviewMarkdown).toContain("## Claims and Evidence");
+      expect(review.result?.reviewMarkdown).toContain("## Reproducibility and Rigor Checklist");
+      expect(review.result?.reviewMarkdown).toContain("## Questions for the Authors");
+      expect(review.result?.reviewMarkdown).toContain("# REVIEW QUALITY AUDIT");
       expect(review.result?.reviewMarkdown).toContain("Strict Inequality Error at Origin");
       expect(review.result?.anchoredComments?.length).toBeGreaterThanOrEqual(2);
 
