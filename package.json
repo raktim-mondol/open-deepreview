@@ -10,6 +10,7 @@
   "scripts": {
     "start": "bun run src/cli.ts",
     "review": "bun run src/cli.ts review",
+    "pdf2md": "bun run src/cli.ts pdf2md",
     "serve": "bun run src/cli.ts serve",
     "verify-citations": "bun run src/cli.ts verify-citations",
     "estimate-cost": "bun run src/cli.ts estimate-cost",

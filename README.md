@@ -1,5 +1,8 @@
 # Open Deep Review (`open-deepreview`)
 
+[![CI](https://github.com/raktim-mondol/open-deepreview/actions/workflows/ci.yml/badge.svg)](https://github.com/raktim-mondol/open-deepreview/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/raktim-mondol/open-deepreview)](https://github.com/raktim-mondol/open-deepreview/releases)
+
 An open-source TypeScript + Bun CLI and local API/viewer that recreates Google Research's **Deep Review** ([research.google/deepreview](https://research.google/deepreview/)) and **Paper Assistant Tool (PAT)** pipeline ([Google Research Blog](https://research.google/blog/analyzing-technical-documents-with-deep-review/), [arXiv:2606.28277](https://arxiv.org/abs/2606.28277)) for analyzing technical and scientific papers — with full support for any user-specified LLM **`baseUrl`**, **`apiKey`**, and **`model`**.
 
 ---
